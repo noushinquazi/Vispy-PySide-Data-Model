@@ -1,6 +1,6 @@
 # Vispy-PySide-Data-Model
-spherical data model using vispy with pyside as gui. uses opengl 3.3+
+spherical data model using vispy with pyside as gui. uses opengl 3.3+\n
 Dependencies:
-  pyside
-  vispy
-  numpy
+  \tpyside
+  \tvispy
+  \tnumpy
