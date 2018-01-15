@@ -5,6 +5,7 @@ from vispy.util.transforms import perspective, translate, rotate, ortho
 from OpenGL.GLU import *
 import math
 from glm import project, unProject, GLM_DEPTH_CLIP_SPACE, GLM_DEPTH_ZERO_TO_ONE, tvec3
+
 # Force using qt and take QtCore+QtGui from backend module
 try:
     app_object = app.use_app('pyqt4')
@@ -89,8 +90,9 @@ void main()
 
 class Canvas(app.Canvas):
 
-    def __init__(self, n, **kwargs):
+    def __init__(self, n, parent,**kwargs):
         app.Canvas.__init__(self, size=(400, 400),**kwargs)
+
 
         #bind shaders to programs
         self.points = gloo.Program(vertex, fragment)
@@ -155,7 +157,7 @@ class Canvas(app.Canvas):
         p1 = self.unProject(0,10,10,self.viewport)
         p2 = self.unProject(self.radius,10,10,self.viewport)
         self.radius_unproject = p2[0]-p1[0]
-        print self.radius_unproject
+        #print self.radius_unproject
 
         #bind mouse callbacks
         self.events.mouse_press.connect(self.on_mouse_press)
@@ -168,7 +170,13 @@ class Canvas(app.Canvas):
 
         #self._timer = app.Timer('auto', connect=self.update_transforms)
         #self._timer.start()
-        self.show()
+
+        # Label
+        self.label = QtGui.QLabel("Point Name", self.native)
+        self.label.setGeometry(100, 100, 75, 20)
+        self.label.setStyleSheet("background-color: white;")
+        self.label.setText("Point Name")
+        self.label.hide()
 
     def vogel_sphere(self,n):
         """
@@ -268,6 +276,7 @@ class Canvas(app.Canvas):
             self.oldy = newy
 
             self.update()
+            self.label.hide()
         #mouse hovering
         else:
             self.isHover = True
@@ -278,16 +287,22 @@ class Canvas(app.Canvas):
             if not self.isSelect:
                 hit = self.ray_cast(event.pos[0], event.pos[1])
                 if hit>-1:
-                    #print 'highlight'
+                    #highlight point
                     self.restorePrev()
                     self.switchPrev(hit)
                     self.update_colors()
                     self.update()
 
+                    #move label
+                    self.label.move(event.pos[0]+self.radius, event.pos[1])
+                    self.label.setText(str(hit))
+                    self.label.show()
+
                 elif self.isPrev:
                     #if not hit clear prev buffer
                     #print 'no highlight'
                     self.restorePrev()
+                    self.label.hide()
                     self.isPrev = False
                     self.update_colors()
                     self.update()
@@ -339,8 +354,6 @@ class Canvas(app.Canvas):
             except:
                 raise
         return -1
-
-
 
     def switchPrev(self,index):
         """
@@ -434,6 +447,13 @@ class Canvas(app.Canvas):
         win4 = (win4+1)/2.0
 
         return win4[:3]
+
+    def toggleLabel(self,**kwargs):
+        if self.label.isVisible():
+            self.label.hide()
+        else:
+            self.label.move(kwargs['x'],kwargs['y'])
+            self.label.show()
 
 class TextField(QtGui.QPlainTextEdit):
 

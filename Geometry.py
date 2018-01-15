@@ -1,5 +1,3 @@
-from Point import Point
-import math
 import pickle
 import kdtree as kd
 
@@ -81,10 +79,3 @@ def square_dist(point1,point2):
         sum+=(point1[2]-point2[2])**2
     return sum
 
-def intersect_vectors(v,u, radius):
-    cross_prod = Point(v.y * u.z - v.z * u.y, -v.x * u.z + v.z * u.x, v.x * u.y - v.y * u.x)
-    mag_cross = math.sqrt(cross_prod.x ** 2 + cross_prod.y ** 2 + cross_prod.z ** 2)
-    base = math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2)
-    height = mag_cross / base
-    if (height <= radius): return True
-    return False
