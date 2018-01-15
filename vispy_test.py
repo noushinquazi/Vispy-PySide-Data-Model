@@ -448,13 +448,7 @@ class Canvas(app.Canvas):
 
         return win4[:3]
 
-    def toggleLabel(self,**kwargs):
-        if self.label.isVisible():
-            self.label.hide()
-        else:
-            self.label.move(kwargs['x'],kwargs['y'])
-            self.label.show()
-
+    
 class TextField(QtGui.QPlainTextEdit):
 
     def __init__(self, parent):
