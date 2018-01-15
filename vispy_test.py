@@ -146,7 +146,7 @@ class Canvas(app.Canvas):
         self.prev_data[0,0] = 0
         self.prev_data[0,1:] = colors[0,:]
         self.isPrev = False
-        self.isSelect = False
+        self.isSelect = None
         self.isPressed = False
         self.isDragged = False
         self.isHover = False
@@ -154,8 +154,8 @@ class Canvas(app.Canvas):
 
         #calculate unprojected radius for ray casting
         self.viewport = (0,0,328,400) #setup fake viewport
-        p1 = self.unProject(0,10,10,self.viewport)
-        p2 = self.unProject(self.radius,10,10,self.viewport)
+        p1 = self.unProject(0,10,10)
+        p2 = self.unProject(self.radius,10,10)
         self.radius_unproject = p2[0]-p1[0]
         #print self.radius_unproject
 
@@ -237,6 +237,12 @@ class Canvas(app.Canvas):
 
             self.world[:, 3] = self.positions[:, 3]
             self.tree = Geometry.kdtree(self.world.tolist())
+            if self.isSelect:
+                x,y,z = self.world[self.isSelect,:3]
+                if z>=0:
+                    x,y,z = self.project(x,y,z)
+                    self.label.move(x+self.radius,y)
+                    self.label.show()
         #user just clicked
         else:
             print 'mouse picking'
@@ -246,11 +252,11 @@ class Canvas(app.Canvas):
                 #deselection
                 if hit == self.prev_data[0,0] and self.isSelect:
                     print 'deselecting chosen'
-                    self.isSelect = False
+                    self.isSelect = None
                     self.isPrev = False
                 else:
                     print 'selecting'
-                    self.isSelect = True
+                    self.isSelect = hit
                     self.switchPrev(hit)
                 self.update_colors()
                 self.update()
@@ -318,8 +324,8 @@ class Canvas(app.Canvas):
 #        test_back = unProject(tvec3(screenx,screeny,1),np.matrix(self.projection),np.matrix(mv),viewport)
 
         #convert mouse screen coords to world screen coords on near and far clipping plane
-        world_x, world_y, world_z_high = self.unProject(screenx,screeny,0,self.viewport)
-        world_z_low = self.unProject(screenx,screeny,1,self.viewport)[2]
+        world_x, world_y, world_z_high = self.unProject(screenx,screeny,0)
+        world_z_low = self.unProject(screenx,screeny,1)[2]
 
         #only calc points that give unique bounds
         low_x = world_x - self.radius_unproject
@@ -407,7 +413,7 @@ class Canvas(app.Canvas):
 
         self.update()
 
-    def unProject(self,x,y,z,viewport):
+    def unProject(self,x,y,z):
         """
         convert screen coords to worldspace coords
         z=0 for near clipping plane
@@ -422,8 +428,8 @@ class Canvas(app.Canvas):
 
         win4 = np.array((x,y,z,1.), dtype= np.float32)
 
-        win4[0]=(win4[0] - viewport[0]) / float(viewport[2])
-        win4[1]=(win4[1] - viewport[1]) / float(viewport[3])
+        win4[0]=(win4[0] - self.viewport[0]) / float(self.viewport[2])
+        win4[1]=(win4[1] - self.viewport[1]) / float(self.viewport[3])
         win4 = win4 * 2. - 1.
 
         world_coords = np.dot(win4,inverse)
@@ -431,20 +437,26 @@ class Canvas(app.Canvas):
 
         return world_coords[:3]
 
-    def project(self,x,y,z,viewport):
+    def project(self,x,y,z):
         """
         convert worldspace coords to screen coords
         :param x:
         :param y:
         :param z:
-        :param viewport:
         :return:
         """
         win4 = np.array((x,y,z,1.), dtype= np.float32)
         win4 = np.dot(win4,self.mvp)
-        win4/=win4[3]
+        """
+        win4 = np.dot(win4,self.model)
+        win4 = np.dot(win4, self.view)
+        win4 = np.dot(win4,self.projection)
+        """
 
+        win4/=win4[3]
         win4 = (win4+1)/2.0
+        win4[0] = win4[0] * (self.viewport[2]) + (self.viewport[0])
+        win4[1] = self.viewport[3] - win4[1] * (self.viewport[3]) + (self.viewport[1])
 
         return win4[:3]
 
