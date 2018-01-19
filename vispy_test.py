@@ -1,6 +1,7 @@
 import numpy as np
 from vispy import app, gloo
 import Geometry
+import random
 from vispy.util.transforms import perspective, translate, rotate, ortho
 from OpenGL.GLU import *
 import math
@@ -92,7 +93,7 @@ class Canvas(app.Canvas):
 
     def __init__(self, n, parent,**kwargs):
         app.Canvas.__init__(self, size=(400, 400),**kwargs)
-
+        #self.native.setLayout(QtGui.QLayout())
 
         #bind shaders to programs
         self.points = gloo.Program(vertex, fragment)
@@ -110,7 +111,7 @@ class Canvas(app.Canvas):
         self.points['position'] = gloo.VertexBuffer(shader_pos[:n,:])
         self.lines['position'] = gloo.VertexBuffer(shader_pos)
 
-        self.points['radius'] = 10
+        self.points['radius'] = 5
         self.points['fg_color'] = 0.984, 0.980, 0.635, .5
         colors = np.random.uniform(0.75, 1.00, (n, 4)).astype(dtype=np.float32)
         colors[:, 3] = 1
@@ -121,13 +122,13 @@ class Canvas(app.Canvas):
         self.view=translate((0, 0, -5.0))
         self.model = np.eye(4, dtype=np.float32)
         self.projection = ortho(-1.5, 1.5, -1.75, 1.75, 0.1, 100)
+        #self.projection = perspective(45.0, 328/400.0, 0.1, 100.0)
         self.mvp = np.dot(self.view, self.projection)
 
         #bind matrices
         self.update_projections()
         self.update_models()
         self.update_views()
-
 
         #bind variables
         self.index = gloo.IndexBuffer(index)
@@ -146,7 +147,7 @@ class Canvas(app.Canvas):
         self.prev_data[0,0] = 0
         self.prev_data[0,1:] = colors[0,:]
         self.isPrev = False
-        self.isSelect = None
+        self.isSelect = -1
         self.isPressed = False
         self.isDragged = False
         self.isHover = False
@@ -157,7 +158,6 @@ class Canvas(app.Canvas):
         p1 = self.unProject(0,10,10)
         p2 = self.unProject(self.radius,10,10)
         self.radius_unproject = p2[0]-p1[0]
-        #print self.radius_unproject
 
         #bind mouse callbacks
         self.events.mouse_press.connect(self.on_mouse_press)
@@ -173,9 +173,8 @@ class Canvas(app.Canvas):
 
         # Label
         self.label = QtGui.QLabel("Point Name", self.native)
-        self.label.setGeometry(100, 100, 75, 20)
+        #self.label.setGeometry(100, 100, 75, 20)
         self.label.setStyleSheet("background-color: white;")
-        self.label.setText("Point Name")
         self.label.hide()
 
     def vogel_sphere(self,n):
@@ -188,6 +187,7 @@ class Canvas(app.Canvas):
         theta = golden_angle * np.arange(n)
         y = np.linspace(1 - 1.0 / n, 1.0 / n - 1, n)
         radius = np.sqrt(1 - y * y)
+        #radius = np.random.uniform(0,1,n)
 
         points = np.zeros((n + 1, 4), dtype=np.float32)
         points[:n, 0] = radius * np.sin(theta)
@@ -236,13 +236,10 @@ class Canvas(app.Canvas):
             self.world = np.dot(self.world, self.model)
 
             self.world[:, 3] = self.positions[:, 3]
+
+            # reset kd tree
             self.tree = Geometry.kdtree(self.world.tolist())
-            if self.isSelect:
-                x,y,z = self.world[self.isSelect,:3]
-                if z>=0:
-                    x,y,z = self.project(x,y,z)
-                    self.label.move(x+self.radius,y)
-                    self.label.show()
+
         #user just clicked
         else:
             print 'mouse picking'
@@ -250,16 +247,23 @@ class Canvas(app.Canvas):
             self.restorePrev()
             if hit>-1:
                 #deselection
-                if hit == self.prev_data[0,0] and self.isSelect:
+                if hit == self.isSelect:
                     print 'deselecting chosen'
-                    self.isSelect = None
+                    self.label.hide()
+                    print 'label hide'
+                    self.isSelect = -1
                     self.isPrev = False
                 else:
                     print 'selecting'
                     self.isSelect = hit
                     self.switchPrev(hit)
+
                 self.update_colors()
                 self.update()
+
+        # handle label
+        if self.isSelect > -1:
+            self.handleLabel(self.isSelect)
 
         self.isPressed = False
         self.isDragged = False
@@ -268,6 +272,8 @@ class Canvas(app.Canvas):
     def on_mouse_move(self, event):
         #if mouse dragging
         if self.isPressed:
+            self.label.hide()
+            print 'label hide'
             self.isDragged = True
             newx, newy = event.pos[0],event.pos[1]
             dx, dy = (newx-self.oldx)/5., (newy-self.oldy)/5.
@@ -282,7 +288,7 @@ class Canvas(app.Canvas):
             self.oldy = newy
 
             self.update()
-            self.label.hide()
+
         #mouse hovering
         else:
             self.isHover = True
@@ -290,25 +296,23 @@ class Canvas(app.Canvas):
 
             # check if we even need to search intersections
             # we dont care if just hovering with an item already selected
-            if not self.isSelect:
+            if self.isSelect<0:
                 hit = self.ray_cast(event.pos[0], event.pos[1])
                 if hit>-1:
+                    # move label
+                    self.handleLabel(hit)
+
                     #highlight point
                     self.restorePrev()
                     self.switchPrev(hit)
                     self.update_colors()
                     self.update()
 
-                    #move label
-                    self.label.move(event.pos[0]+self.radius, event.pos[1])
-                    self.label.setText(str(hit))
-                    self.label.show()
-
                 elif self.isPrev:
                     #if not hit clear prev buffer
                     #print 'no highlight'
-                    self.restorePrev()
                     self.label.hide()
+                    self.restorePrev()
                     self.isPrev = False
                     self.update_colors()
                     self.update()
@@ -318,7 +322,6 @@ class Canvas(app.Canvas):
 
         #convert from windows screen coords to opengl screen coords
         screeny = self.viewport[3]-screeny
-
         #reverse modelview and projection
 #        test_front = unProject(tvec3(screenx,screeny,0),np.matrix(self.projection),np.matrix(mv),viewport)
 #        test_back = unProject(tvec3(screenx,screeny,1),np.matrix(self.projection),np.matrix(mv),viewport)
@@ -421,8 +424,7 @@ class Canvas(app.Canvas):
         :param x:
         :param y:
         :param z:
-        :param viewport:
-        :return:
+        :return numpy array:
         """
         inverse = np.linalg.inv(self.mvp)
 
@@ -443,7 +445,7 @@ class Canvas(app.Canvas):
         :param x:
         :param y:
         :param z:
-        :return:
+        :return numpy array:
         """
         win4 = np.array((x,y,z,1.), dtype= np.float32)
         win4 = np.dot(win4,self.mvp)
@@ -460,7 +462,16 @@ class Canvas(app.Canvas):
 
         return win4[:3]
 
-    
+    def handleLabel(self,index):
+        x, y, z = self.world[index, :3]
+        if z >= -.005:
+            x, y, z = self.project(x, y, z)
+            self.label.move(x + self.radius, y)
+            self.label.setText(str(index))
+            width = self.label.fontMetrics().boundingRect(self.label.text()).width()
+            self.label.setFixedWidth(width)
+            self.label.show()
+
 class TextField(QtGui.QPlainTextEdit):
 
     def __init__(self, parent):
