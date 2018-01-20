@@ -330,6 +330,12 @@ class Canvas(app.Canvas):
         self.mvp = reduce(np.dot, [self.model,self.view,self.projection])
         if self.isSelect>-1:
             self.handleLabel(self.isSelect)
+
+        #recalculate intersection area
+        p1 = self.unProject(0, 10, 10)
+        p2 = self.unProject(self.radius, 10, 10)
+        self.radius_unproject = p2[0] - p1[0]
+
         self.update_projections()
         self.update()
 
@@ -513,7 +519,7 @@ class MainWindow(QtGui.QWidget):
         self.vertEdit.setPlainText(info)
 
         # Create a canvas
-        self.canvas = Canvas(1000,parent=self)
+        self.canvas = Canvas(100,parent=self)
 
         # Layout
         hlayout = QtGui.QHBoxLayout(self)
