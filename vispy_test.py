@@ -15,7 +15,7 @@ except Exception:
 QtCore = app_object.backend_module.QtCore,
 QtGui = app_object.backend_module.QtGui
 
-
+info = "None"
 vertex = """
 #version 120
 uniform mat4 model;
@@ -141,6 +141,7 @@ class Canvas(app.Canvas):
         self.phi = 0
         self.oldx, self.oldy = 0,0
         self.radius = self.points['radius']+self.points['linewidth']
+        self.parent = parent
 
         ##dealing with hovering/selecting intricacies
         self.prev_data = np.ndarray((1,5))
@@ -250,13 +251,17 @@ class Canvas(app.Canvas):
                 if hit == self.isSelect:
                     print 'deselecting chosen'
                     self.label.hide()
-                    print 'label hide'
                     self.isSelect = -1
                     self.isPrev = False
                 else:
                     print 'selecting'
                     self.isSelect = hit
                     self.switchPrev(hit)
+                    color = self.colors[hit,:]
+                    pos = self.world[hit,:]
+                    global info
+                    info = "color "+str(color)+"\nposition "+str(pos)
+                    self.parent.vertEdit.setPlainText(info)
 
                 self.update_colors()
                 self.update()
@@ -273,7 +278,6 @@ class Canvas(app.Canvas):
         #if mouse dragging
         if self.isPressed:
             self.label.hide()
-            print 'label hide'
             self.isDragged = True
             newx, newy = event.pos[0],event.pos[1]
             dx, dy = (newx-self.oldx)/5., (newy-self.oldy)/5.
@@ -464,13 +468,13 @@ class Canvas(app.Canvas):
 
     def handleLabel(self,index):
         x, y, z = self.world[index, :3]
-        if z >= -.005:
-            x, y, z = self.project(x, y, z)
-            self.label.move(x + self.radius, y)
-            self.label.setText(str(index))
-            width = self.label.fontMetrics().boundingRect(self.label.text()).width()
-            self.label.setFixedWidth(width)
-            self.label.show()
+        #if z >= -.005:
+        x, y, z = self.project(x, y, z)
+        self.label.move(x + self.radius, y)
+        self.label.setText(str(index))
+        width = self.label.fontMetrics().boundingRect(self.label.text()).width()
+        self.label.setFixedWidth(width)
+        self.label.show()
 
 class TextField(QtGui.QPlainTextEdit):
 
@@ -495,11 +499,11 @@ class MainWindow(QtGui.QWidget):
 
         # Create two editors
         self.vertEdit = TextField(self)
-        self.vertEdit.setPlainText(vertex)
+        self.vertEdit.setPlainText(info)
 
 
         # Create a canvas
-        self.canvas = Canvas(500,parent=self)
+        self.canvas = Canvas(100,parent=self)
 
         # Layout
         hlayout = QtGui.QHBoxLayout(self)
@@ -511,7 +515,6 @@ class MainWindow(QtGui.QWidget):
         #
         vlayout.addWidget(self.vertLabel, 0)
         vlayout.addWidget(self.vertEdit, 1)
-
 
         self.show()
 
