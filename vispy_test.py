@@ -121,8 +121,8 @@ class Canvas(app.Canvas):
         #set up matrices
         self.view=translate((0, 0, -5.0))
         self.model = np.eye(4, dtype=np.float32)
+        #self.projection = ortho(-.5, .5, -.75, .75, 0.1, 100)
         self.projection = ortho(-1.5, 1.5, -1.75, 1.75, 0.1, 100)
-        #self.projection = perspective(45.0, 328/400.0, 0.1, 100.0)
         self.mvp = np.dot(self.view, self.projection)
 
         #bind matrices
@@ -153,6 +153,7 @@ class Canvas(app.Canvas):
         self.isDragged = False
         self.isHover = False
         self.num = n
+        self.zoom = 1
 
         #calculate unprojected radius for ray casting
         self.viewport = (0,0,328,400) #setup fake viewport
@@ -321,6 +322,16 @@ class Canvas(app.Canvas):
                     self.update_colors()
                     self.update()
 
+    def on_mouse_wheel(self, event):
+        self.zoom+= .1 if event.delta[1] > 0  else -0.1
+        if self.zoom <= 0:
+            self.zoom += .1
+        self.projection = ortho(-1.5/self.zoom, 1.5/self.zoom, -1.75/self.zoom, 1.75/self.zoom, 0.1, 100)
+        self.mvp = reduce(np.dot, [self.model,self.view,self.projection])
+        if self.isSelect>-1:
+            self.handleLabel(self.isSelect)
+        self.update_projections()
+        self.update()
 
     def ray_cast(self,screenx,screeny):
 
@@ -368,6 +379,9 @@ class Canvas(app.Canvas):
                 raise
         return -1
 
+    def setHighlight(self,index, col =(0.823529, 0.411765, 0.117647, 1)):
+        self.colors[index, :] = col
+
     def switchPrev(self,index):
         """
         set new previously selected for future deselection
@@ -378,9 +392,6 @@ class Canvas(app.Canvas):
         self.prev_data[0,1:] = self.colors[index,:]
         self.isPrev = True
         self.setHighlight(index)
-
-    def setHighlight(self,index, col =(0.823529, 0.411765, 0.117647, 1)):
-        self.colors[index, :] = col
 
     def restorePrev(self):
         """
@@ -497,13 +508,12 @@ class MainWindow(QtGui.QWidget):
         # Create a label
         self.vertLabel = QtGui.QLabel("Vertex code", self)
 
-        # Create two editors
+        # Create field
         self.vertEdit = TextField(self)
         self.vertEdit.setPlainText(info)
 
-
         # Create a canvas
-        self.canvas = Canvas(100,parent=self)
+        self.canvas = Canvas(1000,parent=self)
 
         # Layout
         hlayout = QtGui.QHBoxLayout(self)
